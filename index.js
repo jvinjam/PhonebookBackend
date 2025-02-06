@@ -4,7 +4,6 @@ const morgan = require('morgan')
 const app = express()
 
 app.use(express.json())
-app.use(morgan('tiny'))
 
 let persons = [
   {
@@ -28,6 +27,16 @@ let persons = [
     "number": "39-23-6423122"
   }
 ]
+
+morgan.token('body', function (req, res) {
+  if ('POST'.includes(req.method))
+    return JSON.stringify(req.body)
+  else
+    return ''
+})
+
+app.use(morgan(':method :url :status :res[content-length] - :response-time ms :body'))
+// app.use(morgan('tiny'))
 
 app.get('/api/persons', (request, response) => {
   response.json(persons)
