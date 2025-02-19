@@ -1,28 +1,26 @@
 const express = require("express");
 const app = express();
 
-const morgan = require("morgan");
-const cors = require("cors");
-//const path = require('path');
-
 // Import environment variables from.env file
 require("dotenv").config();
 
 const Person = require("./models/person");
 
-app.use(express.json());
-app.use(cors());
 //to serve static files from the build folder of frontend
 app.use(express.static("dist"));
+//const path = require('path');
 // app.use(express.static(path.join(__dirname, 'dist')));
 
-let persons = [];
-
+const cors = require("cors");
+const morgan = require("morgan");
 // Middleware for parsing JSON request bodies
 morgan.token("body", function (req, res) {
   if ("POST".includes(req.method)) return JSON.stringify(req.body);
   else return "";
 });
+
+app.use(cors());
+app.use(express.json());
 
 // Middleware for logging HTTP requests
 app.use(
@@ -32,35 +30,46 @@ app.use(
 
 // Get all persons from the database
 app.get("/api/persons", (request, response) => {
-  // response.json(persons);
   Person.find({}).then((persons) => {
     response.json(persons);
   });
 });
 
 // Summary of persons application endpoint
-app.get("/info", (request, response) => {
+app.get("/info", (request, response, next) => {
   const currentDate = new Date();
   // Use toString() to get the desired format
   const formattedDate = currentDate.toString();
 
-  response.send(`<div>Phonebook has info for ${persons.length} people</div>
-    <br/>
-    <div>${formattedDate}</div>`);
+  Person.countDocuments()
+    .then((count) => {
+      response.send(`<div>Phonebook has info for ${count} people</div>
+        <br/>
+        <div>${formattedDate}</div>`);
+    })
+    .catch((error) => next(error));
 });
 
 // Get a single person by ID from the database
-app.get("/api/persons/:id", (request, response) => {
-  Person.findById(request.params.id).then((person) => {
-    response.json(person);
-  });
+app.get("/api/persons/:id", (request, response, next) => {
+  Person.findById(request.params.id)
+    .then((person) => {
+      if (person) {
+        response.json(person);
+      } else {
+        response.status(404).json({ error: "person not found" });
+      }
+    })
+    .catch((error) => next(error));
 });
 
 // Delete a person by ID from the database and return 204 No Content status code
-app.delete("/api/persons/:id", (request, response) => {
-  const id = request.params.id;
-  persons = persons.filter((p) => p.id != id);
-  response.status(204).end();
+app.delete("/api/persons/:id", (request, response, next) => {
+  Person.findByIdAndDelete(request.params.id)
+    .then(() => {
+      response.status(204).end();
+    })
+    .catch((error) => next(error));
 });
 
 // Create a new person to the database and return the created person as JSON
@@ -79,12 +88,6 @@ app.post("/api/persons", (request, response) => {
     });
   }
 
-  // if (persons.find((p) => p.name === name)) {
-  //   return response.status(400).json({
-  //     error: "name must be unique",
-  //   });
-  // }
-
   const person = new Person({
     name: name,
     number: number,
@@ -93,6 +96,36 @@ app.post("/api/persons", (request, response) => {
     response.json(savedPerson);
   });
 });
+
+// Update an existing person by ID in the database and return the updated person as JSON
+app.put("/api/persons/:id", (request, response, next) => {
+  const newPerson = {
+    name: request.body.name,
+    number: request.body.number,
+  };
+  Person.findByIdAndUpdate(request.params.id, newPerson, { new: true })
+    .then((updatedPerson) => {
+      response.json(updatedPerson);
+    })
+    .catch((error) => next(error));
+});
+
+const unknownEndpoint = (request, response) => {
+  response.status(404).send({ error: "unknown endpoint" });
+};
+// Handle errors for all routes that are not defined
+app.use(unknownEndpoint);
+
+const errorHandler = (error, request, response, next) => {
+  console.error(error.message);
+  if (error.name === "CastError") {
+    return response.status(400).send({ error: "malformatted id" });
+  }
+
+  next(error);
+};
+// Middleware for error handling
+app.use(errorHandler);
 
 // Catch-all route to send back index.html for SPA routing (important for React, Angular, etc.)
 // app.get('*', (req, res) => {
