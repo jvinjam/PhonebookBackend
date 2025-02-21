@@ -1,7 +1,4 @@
-// mongodb+srv://jvinj:<db_password>@cluster0.3pcix.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
-// const url =
-//   `mongodb+srv://fullstack:${password}@cluster0.o1opl.mongodb.net/noteApp?retryWrites=true&w=majority`
-
+require("dotenv").config();
 const mongoose = require("mongoose");
 
 const numOfArgs = process.argv.length;
@@ -13,7 +10,7 @@ if (numOfArgs < 3) {
 
 const password = process.argv[2];
 
-const url = `mongodb+srv://jvinj:${password}@cluster0.3pcix.mongodb.net/phonebookApp?retryWrites=true&w=majority&appName=Cluster0`;
+const url = process.env.MONGODB_URI;
 
 mongoose.set("strictQuery", false);
 

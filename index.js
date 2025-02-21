@@ -73,28 +73,17 @@ app.delete("/api/persons/:id", (request, response, next) => {
 });
 
 // Create a new person to the database and return the created person as JSON
-app.post("/api/persons", (request, response) => {
-  const name = request.body.name;
-  const number = request.body.number;
-  if (!name) {
-    return response.status(400).json({
-      error: "name missing",
-    });
-  }
-
-  if (!number) {
-    return response.status(400).json({
-      error: "number missing",
-    });
-  }
-
+app.post("/api/persons", (request, response, next) => {
   const person = new Person({
-    name: name,
-    number: number,
+    name: request.body.name,
+    number: request.body.number,
   });
-  person.save().then((savedPerson) => {
-    response.json(savedPerson);
-  });
+  person
+    .save()
+    .then((savedPerson) => response.json(savedPerson))
+    .catch((error) => {
+      next(error);
+    }); // Handle Mongoose validation errors separately);
 });
 
 // Update an existing person by ID in the database and return the updated person as JSON
@@ -103,11 +92,18 @@ app.put("/api/persons/:id", (request, response, next) => {
     name: request.body.name,
     number: request.body.number,
   };
-  Person.findByIdAndUpdate(request.params.id, newPerson, { new: true })
+  Person.findByIdAndUpdate(request.params.id, newPerson, {
+    new: true,
+    runValidators: true,
+    context: "query",
+  })
     .then((updatedPerson) => {
       response.json(updatedPerson);
     })
-    .catch((error) => next(error));
+    .catch((error) => {
+      console.log("update err: ", error.message);
+      next(error);
+    });
 });
 
 const unknownEndpoint = (request, response) => {
@@ -120,6 +116,8 @@ const errorHandler = (error, request, response, next) => {
   console.error(error.message);
   if (error.name === "CastError") {
     return response.status(400).send({ error: "malformatted id" });
+  } else if (error.name === "ValidationError") {
+    return response.status(400).json({ error: error.message });
   }
 
   next(error);
